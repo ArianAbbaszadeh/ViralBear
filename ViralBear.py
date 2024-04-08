@@ -60,10 +60,9 @@ def get_data_channel(link):
     WebDriverWait(driver, config['explicit_wait']).until(confirmation)
     #make soup
     soup = BeautifulSoup(driver.page_source, "html.parser")
-    print("hello")
+    soup = soup.find_all('div', class_='css-1qb12g8-DivThreeColumnContainer eegew6e2')
     #write to file
     with open("tiktok_current.html", "w", encoding='utf-8') as file:
-        print(str(soup))
         file.write(str(soup))
 
     driver.quit()
