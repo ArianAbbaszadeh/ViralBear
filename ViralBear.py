@@ -9,7 +9,10 @@ from tiktok_uploader.upload import upload_video
 from tiktok_uploader.browsers import get_browser
 from tiktok_uploader import config, logger
 from tiktok_uploader.utils import green
-from Uploader import *
+from tiktok_uploader.auth import AuthBackend
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 from schedule import *
 from Channel import *
 import re
@@ -45,15 +48,12 @@ def get_id(link):
 def get_data_channel(link):
     #download data
 
-    #Wait 2 seconds after direct.get() is completed to increase likelihood of success
     auth = AuthBackend('', '', None, cookies="cookies/cookies1.txt")
     driver = get_browser()
     driver = auth.authenticate_agent(driver)
 
-    #time.sleep(10)
     logger.debug(green('Navigating to link'))
     driver.get(link)
-    channel_name = link.split("@")[-1]
     confirmation = EC.presence_of_element_located(
         (By.XPATH, config["selectors"]["upload"]["confirmation"])
     )
@@ -174,3 +174,4 @@ def upload():
 
 if __name__ == "__main__":
     get_data_channel("https://www.tiktok.com/@bobbyleeclips")
+    download()
