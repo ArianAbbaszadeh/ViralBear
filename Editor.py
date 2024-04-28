@@ -7,7 +7,7 @@ from moviepy.video.tools.subtitles import SubtitlesClip
 from moviepy.video.VideoClip import *
 from faster_whisper import WhisperModel
 
-def make_video_format1(main_path, bkg_path = "SubwaySurfers001.mp4", bkg_cutoff=0.5, main_ypan = 0.15, output = "ready/testoutput.mp4"):
+def make_video_format1(main_path, bkg_path = "SubwaySurfers001.mp4", bkg_cutoff=0.45, main_ypan = 0.15, output = "ready/testoutput.mp4"):
 
     # create clips from file paths
     main_clip = VideoFileClip(main_path)

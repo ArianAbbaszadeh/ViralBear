@@ -67,5 +67,5 @@ if __name__ == '__main__':
 
     videos = [{"path": "downloaded/7260232408643964203.mp4", "description": "Test1", "schedule": "2024-04-01 07:30"},
               {"path": "downloaded/7259474993799646507.mp4", "description": "Test2", "schedule": "2024-04-01 16:20"}]
-    upload_videos(videos, auth)
-    #upload_video("ready/testoutput.mp4", description="Test", cookies="cookies/cookies2.txt", schedule = "2024-03-31 15:30")
+    #upload_videos(videos, auth)
+    upload_video("ready/testoutput.mp4", description="Test", cookies="cookies/cookies2.txt", schedule = "2024-04-25 07:00")

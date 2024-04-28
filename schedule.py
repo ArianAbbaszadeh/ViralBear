@@ -72,9 +72,8 @@ def new_video(id, title, channel):
     cached = cached.add(video)
     cached.to_csv("cached.csv")
 
-def get_next_post_time(schedule_file = 'schedule.txt'):
+def get_next_post_time(current = datetime.now(), schedule_file = 'schedule.txt'):
     cached = pd.read_csv("cached.csv")
-    current = datetime.now()
     #if there is already an item in cached, set current to the latest time in the cached
     if len(cached) and datetime.now() < datetime(cached.tail()["SCHEDULE"]):
         current = datetime(cached.tail()["SCHEDULE"]) #make it work per channelnot for thentire csv
@@ -104,6 +103,7 @@ def get_channels_dict(name):
     if len(channel) == 1:
         return channel[0]       
     print("Channel name does not exist")
+    return None
 
 def set_posted(video_id, set_to_posted=True):
     try:

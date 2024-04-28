@@ -2,6 +2,7 @@
 *.mp3
 *.html
 *.csv
+*.json
 cookies/
 .idea/
 __pycache__/

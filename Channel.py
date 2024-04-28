@@ -6,16 +6,21 @@ import pandas as pd
 from schedule import *
 
 class Channel:
-    def __init__(self, channel_dict = None, name = None) -> None:
-        if channel_dict is None and name is not None:
-            channel_dict = get_channels_dict(name)
-        else:
-            ValueError("No parameter given")
+    def __init__(self, channel_dict = None) -> None:
+        if channel_dict == None:
+            ValueError("Invalid input")
 
-        self.name = channel_dict["NAME"]
-        self.cookies = channel_dict["COOKIES_PATH"]
-        self.schedule = channel_dict["SCHEDULE"] 
-        self.genre = channel_dict["GENRE"]  
+        self.name : str = channel_dict["NAME"]
+        self.path: str = channel_dict["PATH"]
+        self.cookies: str= channel_dict["COOKIES_PATH"]
+        self.upload: bool = channel_dict["UPLOAD"]
+        self.schedule_file: str = channel_dict["SCHEDULE_FILE"]
+        self.schedule: str = channel_dict["SCHEDULE"]
+        self.downloaded: list = channel_dict["DOWNLOADED"]
+        self.ready: list = channel_dict["READY"]
+        self.posted: list = channel_dict["POSTED"]
+        self.html_paths: list = channel_dict["HTML_PATHS"]
+        self.descriptions: list = channel_dict["DESCRIPTIONS"]
 
     def __str__(self) -> str:
         tmp = f'NAME: {self.name}\n'
@@ -23,7 +28,8 @@ class Channel:
         tmp += f'SCHEDULE_PATH: {self.schedule}\n'
         tmp += f'GENRE: {self.genre}\n'
         return tmp
-    
+
+
 class Schedule():
     def __init__(self, channel: Channel):
         file = f"caches/{channel.name}.csv"

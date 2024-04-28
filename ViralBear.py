@@ -1,10 +1,12 @@
 import os
 import ssl
+import time as t
+
 import certifi
 import requests
 from urllib.request import urlopen
 from Editor import *
-from tiktok_uploader.upload import upload_video
+from tiktok_uploader.upload import upload_video, upload_videos
 from tiktok_uploader.browsers import get_browser
 from tiktok_uploader import config, logger
 from tiktok_uploader.utils import green
@@ -20,6 +22,7 @@ from urllib.request import urlopen
 import pandas as pd
 import logging
 import random
+import pandas as pd
 
 def remove_emojis(data):
     emoj = re.compile("["
@@ -63,11 +66,15 @@ def get_data_channel(link):
     WebDriverWait(driver, config['explicit_wait']).until(confirmation)
     #make soup
     soup = BeautifulSoup(driver.page_source, "html.parser")
+    driver.close()
+    if soup is None:
+        logger.debug(green(f"Error fetching data for {link}"))
+        return
     soup = soup.find_all('div', class_='css-1qb12g8-DivThreeColumnContainer eegew6e2')
     #write to file
-    with open("tiktok_current.html", "w", encoding='utf-8') as file:
+    with open(f"html_paths/{link.split('@')[-1]}.html", "w", encoding='utf-8') as file:
         file.write(str(soup))
-        logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+    logger.debug(green(f"Successfully wrote data to {link.split('@')[-1]}.html"))
 
 def get_video_links_from_html(html_path):
     """Extract video links from an HTML file."""
@@ -75,7 +82,22 @@ def get_video_links_from_html(html_path):
         soup = BeautifulSoup(file.read(), 'html.parser')
     return [a['href'] for a in soup.find_all('a', href=True) if "tiktok.com" in a['href']]
 
-def download(link, downloaded_set, download_log_path):
+def channel_to_dict(channel):
+    tmp = dict()
+    tmp["NAME"] = channel.name
+    tmp["PATH"] = channel.path
+    tmp["COOKIES_PATH"] = channel.cookies
+    tmp["UPLOAD"] = channel.upload
+    tmp["SCHEDULE_FILE"] = channel.schedule_file
+    tmp["SCHEDULE"] = channel.schedule
+    tmp["DOWNLOADED"] = channel.downloaded
+    tmp["READY"] = channel.ready
+    tmp["POSTED"] = channel.posted
+    tmp["HTML_PATHS"] = channel.html_paths
+    tmp["DESCRIPTIONS"] = channel.descriptions
+    return tmp
+
+def download(channel, available, quantity):
     """Download a video if it's not already downloaded, log the download, and return the size of the downloaded file."""
     cookies = {
         '_gid': 'GA1.2.247148643.1690580091',
@@ -106,67 +128,144 @@ def download(link, downloaded_set, download_log_path):
     }
 
     params = {'url': 'dl'}
-    data = {'id': link, 'locale': 'en', 'tt': 'ckc5cjNh'}
 
-    try:
+    to_be_downloaded = list()
+    for count in range(quantity):
+        temp = available[random.randint(0, len(available) - 1)]
+        to_be_downloaded.append(temp)
+        available.remove(temp)
+
+    for download_link in to_be_downloaded:
+        data = {'id': download_link, 'locale': 'en', 'tt': 'ckc5cjNh'}
         response = requests.post('https://ssstik.io/abc', params=params, cookies=cookies, headers=headers, data=data)
-        logging.info(f"Response Status: {response.status_code} for URL: {response.url}")
+        logger.debug(f"Response Status: {response.status_code} for URL: {response.url}")
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, "html.parser")
-            download_link = soup.a.get("href") if soup.a else None
-            if download_link and download_link not in downloaded_set:
-                downloaded_set.add(download_link)
-                context = ssl.create_default_context(cafile=certifi.where())
-                mp4_temp = urlopen(download_link, context=context)
-                file_path = f"downloaded/{link.split('/')[-1]}.mp4"
-                with open(file_path, "wb") as output:
-                    total_bytes = 0
-                    while True:
-                        buffer = mp4_temp.read(4096)
-                        if not buffer:
-                            break
-                        output.write(buffer)
-                        total_bytes += len(buffer)
-                with open(download_log_path, "a") as log_file:
-                    log_file.write(f"{download_link}\n")
-                logging.info(f"Successfully downloaded: {file_path}")
-                return float(total_bytes)
-            else:
-                logging.warning("No new download link found or duplicate found.")
-                return 0.0
+            tmp_link = soup.a.get("href") if soup.a else None
+            if not tmp_link:
+                logger.debug("soup failed")
+                continue
+            context = ssl.create_default_context(cafile=certifi.where())
+            mp4_temp = urlopen(tmp_link, context=context)
+            file_path = f"downloaded/{download_link.split('/')[-1]}.mp4"
+            with open(file_path, "wb") as output:
+                total_bytes = 0
+                while True:
+                    buffer = mp4_temp.read(4096)
+                    if not buffer:
+                        break
+                    output.write(buffer)
+                    total_bytes += len(buffer)
+                if(total_bytes > 4096):
+                    channel.downloaded.append(file_path)
+                    with open(channel.path, 'w') as f:
+                        json.dump(channel_to_dict(channel), f)
+                    to_be_downloaded.remove(download_link)
+                    logger.debug(f"download succeeded for video {download_link} in channel {channel.name}")
+                else:
+                    os.remove(file_path)
+                    logger.debug("download failed")
         else:
-            logging.error(f"Failed to download {link}: HTTP status code {response.status_code}")
-            return 0.0
-    except requests.exceptions.RequestException as e:
-        logging.error(f"Request failed for {link}: {e}")
-        return 0.0
+            logger.debug("response failed")
+        t.sleep(5)
 
-def manage_downloads(html_path, quantity, download_log_path):
-    """Extract links from HTML, shuffle them, and manage the download process for a random set of videos."""
-    links = get_video_links_from_html(html_path)
-    random.shuffle(links)  # Shuffle links to randomize the selection
-    downloaded_set = set()
-    if os.path.exists(download_log_path):
-        with open(download_log_path, "r") as file:
-            downloaded_set.update(file.read().splitlines())
-    
-    count = 0
-    for link in links:
-        if count >= quantity:
+    return to_be_downloaded
+
+def available_downloads(channel, min = 3):
+    available = list()
+    for html_path in channel.html_paths:
+        count = 0
+        for link in get_video_links_from_html(html_path):
+            for posted in channel.posted:
+                print(f"posted: {posted}\n link: {link}")
+                if posted == link:
+                    continue
+            available.append(link)
+        if len(available) < min:
+            get_data_channel(html_path)
+    return available if len(available) > min else None
+
+def get_post_time(channel):
+    current = channel.schedule
+    if current == "" or datetime.now() > datetime.strptime(current, '%Y-%m-%d %H:%M'):
+        current = datetime.now()
+    else:
+        current = datetime.strptime(current, '%Y-%m-%d %H:%M')
+
+    times = list()
+    with open(channel.schedule_file) as schedule:
+        times = schedule.read().split("\n")
+    times = [item.split("_") for item in times]
+
+    if current.hour >= int(times[(current.weekday())][-1]):
+        current = (current + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+
+    for hour in times[current.weekday()]:
+        if current.hour < int(hour):
+            current = current.replace(hour=int(hour))
             break
-        result = download(link, downloaded_set, download_log_path)
-        if result > 0.0:
-            count += 1
-            logging.info(f"Successfully downloaded: {link}")
-        else:
-            logging.info(f"Failed to download or skipped: {link}")
-    return count
+    return current.strftime('%Y-%m-%d %H:%M')
+def parse(quantity = 1):
+    with open('channels.json') as f:
+        channels_dict = json.load(f)
+
+    for current_channel in channels_dict:
+        #init channel
+        with open(current_channel["FILEPATH"]) as f:
+            channel = Channel(json.load(f))
+        #confirm videos are available:
+        available = available_downloads(channel, quantity)
+        if available is None:
+            logger.debug(f"not enough avalable downloads for channel {channel.name}")
+        logger.debug(f"found available videos to download")
+        #if videos are available download them
+        failed = 0 if quantity - len(channel.downloaded) - len(channel.ready) <= 0 else download(channel, available, quantity - len(channel.downloaded) - len(channel.ready))
+        if failed != 0:
+            failed = len(failed)
+        logger.debug(f"couldn't downloaded {failed}" if failed != 0 else "Downloaded everything!")
+
+        #edit videos
+        count = 0
+        for path in channel.downloaded:
+            if(count >= quantity - len(channel.ready)):
+                break
+            temp = f"ready/{path.split('/')[-1]}"
+            try:
+                make_video_format1(path, output=temp)
+                channel.ready.append(temp)
+                channel.downloaded.remove(path)
+                with open(channel.path, 'w') as f:
+                    json.dump(channel_to_dict(channel), f)
+                logger.debug(f"successfully edited {path}")
+                count += 1
+            except Exception as e:
+                logger.debug(f"failed to edit {path} retrying...")
+        logger.debug(f"successfully edited {count}/{quantity - len(channel.ready)} videos")
+
+        #upload videos
+        count = 0
+        for path in channel.ready:
+            if count > quantity:
+                break
+
+            try:
+                logger.debug(f"Adding video {path}")
+                video = {"path": path,
+                         "description": channel.descriptions[random.randint(0, len(channel.descriptions) - 1)],
+                         "schedule": get_post_time(channel)}
+                upload_video(path, description=video["description"], cookies=channel.cookies,
+                             schedule=video["schedule"])
+                channel.posted.append(video)
+                channel.schedule = video["schedule"]
+                channel.ready.remove(path)
+                with open(channel.path, 'w') as f:
+                    json.dump(channel_to_dict(channel), f)
+                count += 1
+            except:
+                logger.debug(f"failed to upload {path}")
+
 
 
 if __name__ == "__main__":
-    get_data_channel("https://www.tiktok.com/@bobbyleeclips")
-    download()
-    html_path = "tiktok_current.html"
-    quantity = 2
-    download_log_path = "downloaded_videos_log.txt"
-    manage_downloads(html_path, quantity, download_log_path)
+    parse(1)
+
